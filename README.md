@@ -15,8 +15,8 @@ dunno what else to put here, got nothing else to say
      "pass": "<STEAM_PASSWORD>",
      "webhook": "<DISCORD_WEBHOOK_URL>",
      "spy": "<false_OR_true>",
-     "bot": "<DISCORD_BOT_TOKEN_FOR_NO_SPY>"
-     "channel": "<DISCORD_CHANNEL_ID_FOR_NO_SPY>"
+     "bot": "<DISCORD_BOT_TOKEN_FOR_NO_SPY>",
+     "channel": "<DISCORD_CHANNEL_ID_FOR_NO_SPY>",
    }
    ```
 5. Go to how to setup the bot
