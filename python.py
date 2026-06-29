@@ -101,11 +101,12 @@ async def main():
     spym = data["spy"]
     bot_token = data["bot"]
     channel_id = data["channel"]
+    browser_path = data["browser"]
     #holy shit so... much... data...
 
     browser = await launch(
         headless=False,
-        executablePath='/usr/bin/chromium',
+        executablePath=browser_path,
         args=[
             '--disable-blink-features=AutomationControlled',
             '--disable-infobars',
