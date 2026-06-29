@@ -1,0 +1,151 @@
+import json
+import aiohttp
+import asyncio
+from pyppeteer import launch
+
+webhook_url = ""
+
+
+async def watch_chat(page):
+    seen = set()
+
+    # initialize baseline
+    initial = await page.evaluate("""
+        () => Array.from(document.querySelector('.chatHistory')?.children || [])
+            .map(x => x.innerText)
+    """)
+
+    for msg in initial:
+        seen.add(msg)
+
+    while True:
+        messages = await page.evaluate("""
+            () => Array.from(document.querySelector('.chatHistory')?.children || [])
+                .map(x => x.innerText)
+        """)
+
+        for msg in messages:
+            if not msg or msg in seen:
+                continue
+
+            seen.add(msg)
+            return msg
+
+        await asyncio.sleep(0.5)  # prevent CPU spam
+
+
+async def login(page, usern, passw):
+    # username
+    selector = 'input._2GBWeup5cttgbTw8FM3tfx[type="text"]'
+    await page.waitForSelector(selector)
+    await page.type(selector, usern)
+
+    # password
+    selector = 'input._2GBWeup5cttgbTw8FM3tfx[type="password"]'
+    await page.waitForSelector(selector)
+    await page.type(selector, passw)
+
+    # submit
+    selector = 'button[type="submit"]'
+    await page.waitForSelector(selector, {'visible': True})
+    await asyncio.sleep(0.2)
+
+    await page.evaluate("""
+        () => {
+            const btn = document.querySelector('button[type="submit"]');
+            if (btn && !btn.disabled) btn.click();
+        }
+    """)
+
+
+async def webhook_message(msg):
+    async with aiohttp.ClientSession() as session:
+        await session.post(webhook_url, json={"content": msg})
+
+
+async def relay_message(time, name, msg):
+    async with aiohttp.ClientSession() as session:
+        await session.post(webhook_url, json={
+            "content": f"[{time}] {name}: {msg}"
+        })
+
+
+async def main():
+    global webhook_url  # FIXED scope
+
+    # load config
+    with open("config.json", "r") as f:
+        data = json.load(f)
+
+    usern = data["user"]
+    passw = data["pass"]
+    webhook_url = data["webhook"]
+
+    browser = await launch(
+        headless=False,
+        executablePath='/usr/bin/chromium',
+        args=[
+            '--disable-blink-features=AutomationControlled',
+            '--disable-infobars',
+            '--no-first-run',
+            '--no-default-browser-check',
+            '--disable-default-apps',
+            '--disable-extensions',
+            '--disable-component-extensions-with-background-pages',
+            '--disable-notifications',
+            '--window-size=1200,800'
+        ]
+    )
+
+    # clean default tab
+    pages = await browser.pages()
+    if pages:
+        await pages[0].close()
+
+    page = await browser.newPage()
+
+    # block notifications
+    client = await page.target.createCDPSession()
+    await client.send("Browser.setPermission", {
+        "permission": {"name": "notifications"},
+        "setting": "denied"
+    })
+
+    # go to steam chat
+    await page.goto('https://steamcommunity.com/login/home/?goto=%2Fchat%2F')
+
+    # login
+    await login(page, usern, passw)
+
+    await asyncio.sleep(10)
+    input("Press enter once you're inside the chat...")
+    await asyncio.sleep(2)
+
+    print("Logged in, starting relay...")
+
+    selector = ".chatRoomGroupHeaderName"
+    element = await page.waitForSelector(selector, {"visible": True})
+    text = await page.evaluate('(el) => el.textContent', element)
+
+    await webhook_message("Initialized in chatroom: " + text)
+
+    while True:
+        trigger = await watch_chat(page)
+
+        try:
+            lines = trigger.splitlines()
+            print(trigger)
+            time = lines[1].strip()
+            name = lines[0].strip() if len(lines) > 2 else "Unknown"
+            msg = lines[-1].strip()
+            msg = msg.replace("@everyone", "(BLOCKED EVERYONE PING)")
+            msg = msg.replace("@here", "(BLOCKED HERE PING)")
+
+            await relay_message(time, name, msg)
+
+        except Exception as e:
+            print("Parse error:", e)
+
+
+print("Initializing Steam2Discord V1...")
+asyncio.run(main())
