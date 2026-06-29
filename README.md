@@ -1,6 +1,7 @@
 # Steam 2 Discord Relay
 
-A shitty FOSS Relay for steam, relays to discord
+A shitty FOSS Relay for steam, relays to discord,
+
 dunno what else to put here, got nothing else to say
 
 ## How to use it
@@ -28,3 +29,5 @@ dunno what else to put here, got nothing else to say
 5. Get the bot into the server
 6. Copy the channel id of the channel you want the relay to listen to and paste it into config.json
 7. Profit once again!!
+## TODO!!!
+1. You need epsteam kneeguard off on the acc (steam guard), bot doesnt have support yet
