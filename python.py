@@ -2,9 +2,9 @@ import json
 import aiohttp
 import asyncio
 from pyppeteer import launch
+import discord
 
 webhook_url = ""
-
 
 async def watch_chat(page):
     seen = set()
@@ -69,6 +69,24 @@ async def relay_message(time, name, msg):
             "content": f"[{time}] {name}: {msg}"
         })
 
+async def sayInChat(text, page):
+    textarea_selector = 'textarea.chatentry_chatTextarea_113iu.Focusable'
+    button_selector = 'button.chatentry_chatSubmitButton_RVIs8.Focusable[type="submit"]'
+    await page.waitForSelector(textarea_selector)
+    await page.evaluate("""
+        (sel, value) => {
+            const el = document.querySelector(sel);
+            if (!el) return;
+
+            el.focus();
+            el.value = value;
+
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    """, textarea_selector, text)
+    await page.keyboard.press(' ')
+    await page.click(button_selector)
 
 async def main():
     global webhook_url  # FIXED scope
@@ -80,6 +98,10 @@ async def main():
     usern = data["user"]
     passw = data["pass"]
     webhook_url = data["webhook"]
+    spym = data["spy"]
+    bot_token = data["bot"]
+    channel_id = data["channel"]
+    #holy shit so... much... data...
 
     browser = await launch(
         headless=False,
@@ -128,6 +150,30 @@ async def main():
     text = await page.evaluate('(el) => el.textContent', element)
 
     await webhook_message("Initialized in chatroom: " + text)
+
+    if spym == "false":
+        #setup bot shit
+        intents = discord.Intents.default()
+        intents.message_content = True
+    
+        bot = discord.Client(intents=intents)
+    
+        @bot.event
+        async def on_ready():
+            print(f"Bot launched as {bot.user}")
+            print(f"Listening on channel ID: {channel_id}")
+    
+        @bot.event
+        async def on_message(msg):
+            if msg.author == client.user:
+                return
+    
+            if msg.channel.id != channel_id:
+                return
+    
+            sayInChat(f"{msg.author.display_name} ({msg.author_name}): {msg.content}",page)
+
+        bot.run(bot_token)
 
     while True:
         trigger = await watch_chat(page)
